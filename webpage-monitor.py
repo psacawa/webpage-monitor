@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys
 import re
 from collections import namedtuple
@@ -6,7 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 import logging
 
-logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
 PageMonitorData = namedtuple("PageMonitorData", ["url", "selector", "max_price"])
 
@@ -19,6 +20,7 @@ def main():
     """
     records = open("webpage-monitor.dat", "r").readlines()
     for record in records:
+        logging.debug(f"Processing {record}")
         try:
             record = record.strip()
             data = parse_record(record)
@@ -45,9 +47,9 @@ def query_page(data: PageMonitorData):
     assert (
         response.status_code == 200
     ), "http request to {data.url} failed with {response.status_code}"
-    soup = BeautifulSoup(response.text, 'html.parser')
+    soup = BeautifulSoup(response.text, "html.parser")
     elements = soup.select(data.selector)
-    assert len (elements) == 1, f"Selector '{data.selector}' returned too many elements"
+    assert len(elements) == 1, f"Selector '{data.selector}' returned too many elements"
     text: str = elements[0].text
     price = float(text)
     if price <= data.max_price:
@@ -56,7 +58,7 @@ def query_page(data: PageMonitorData):
 
 def notify_success(data: PageMonitorData, price: float):
     """Notify that a deal has been found"""
-    print(f"Deal found at {data.url} for ${price}") 
+    print(f"Deal found at {data.url} for ${price} (threshold ${data.max_price})")
 
 
 if __name__ == "__main__":
