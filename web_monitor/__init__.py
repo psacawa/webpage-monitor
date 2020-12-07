@@ -6,8 +6,9 @@ from collections import namedtuple
 import requests
 from bs4 import BeautifulSoup
 import logging
+import subprocess
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
 
 PageMonitorData = namedtuple("PageMonitorData", ["url", "selector", "max_price"])
 
@@ -71,8 +72,9 @@ def query_page(data: PageMonitorData):
 
 def notify_success(data: PageMonitorData, price: float):
     """Notify that a deal has been found"""
-    print(f"Deal found at {data.url} for ${price:.2f} (threshold ${data.max_price:.2f})")
-
+    message = f"Deal found at {data.url} for ${price:.2f} (threshold ${data.max_price:.2f})"
+    logging.info(message)
+    subprocess.run(['notify-send', message])
 
 if __name__ == "__main__":
     main()
