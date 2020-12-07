@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import sys
 import re
+from os.path import expanduser, isfile
 from collections import namedtuple
-from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 import logging
@@ -18,7 +18,7 @@ def main():
     the corresponding DOM elements. If they are below the prices, output a notice. Also
     output a notice if the text of the element is not a number.
     """
-    records = open("webpage-monitor.dat", "r").readlines()
+    records = open(config_file()).readlines()
     for record in records:
         logging.debug(f"Processing {record}")
         try:
@@ -29,6 +29,19 @@ def main():
             logging.error(e)
             continue
 
+def config_file() -> str:
+    """
+    Find the config file carrying web monitor records. The first existing file is
+    returned
+    """
+    config_options = [
+        "~/.webmonitorrc",
+        "~/webmonitorrc"
+    ]
+    for file in config_options:
+        if isfile(expanduser(file)):
+            return expanduser(file)
+    raise FileNotFoundError("No config file found")
 
 def parse_record(record) -> PageMonitorData:
     """extract tuple (url,selector,max-price)"""
@@ -58,7 +71,7 @@ def query_page(data: PageMonitorData):
 
 def notify_success(data: PageMonitorData, price: float):
     """Notify that a deal has been found"""
-    print(f"Deal found at {data.url} for ${price} (threshold ${data.max_price})")
+    print(f"Deal found at {data.url} for ${price:.2f} (threshold ${data.max_price:.2f})")
 
 
 if __name__ == "__main__":
