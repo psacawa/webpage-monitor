@@ -60,7 +60,7 @@ def query_page(data: PageMonitorData):
     response = requests.get(data.url)
     assert (
         response.status_code == 200
-    ), "http request to {data.url} failed with {response.status_code}"
+    ), f"http request to {data.url} failed with {response.status_code}"
     soup = BeautifulSoup(response.text, "html.parser")
     elements = soup.select(data.selector)
     assert len(elements) == 1, f"Selector '{data.selector}' returned too many elements"
