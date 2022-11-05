@@ -7,8 +7,12 @@ import requests
 from bs4 import BeautifulSoup
 import logging
 import subprocess
+import argparse
 
-logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
+logger = logging.getLogger("webmonitor")
+handler = logging.StreamHandler(sys.stderr) 
+logger.addHandler(handler)
+
 
 PageMonitorData = namedtuple("PageMonitorData", ["url", "selector", "max_price"])
 
@@ -19,15 +23,20 @@ def main():
     the corresponding DOM elements. If they are below the prices, output a notice. Also
     output a notice if the text of the element is not a number.
     """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-l", "--log-level", type=int, default=logging.INFO)
+    args = parser.parse_args(sys.argv[1:])
+    logger.setLevel(level=args.log_level)
+
     records = open(config_file()).readlines()
     for record in records:
-        logging.debug(f"Processing {record}")
+        logger.debug(f"Processing {record}")
         try:
             record = record.strip()
             data = parse_record(record)
             query_page(data)
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             continue
 
 def config_file() -> str:
@@ -66,6 +75,7 @@ def query_page(data: PageMonitorData):
     assert len(elements) == 1, f"Selector '{data.selector}' returned too many elements"
     text: str = elements[0].text
     price = float(text)
+    logger.debug(f"Found price on page {data.url} with selector {data.selector}: {price}")
     if price <= data.max_price:
         notify_success(data, price)
 
@@ -73,7 +83,7 @@ def query_page(data: PageMonitorData):
 def notify_success(data: PageMonitorData, price: float):
     """Notify that a deal has been found"""
     message = f"Deal found at {data.url} for ${price:.2f} (threshold ${data.max_price:.2f})"
-    logging.info(message)
+    logger.info(message)
     subprocess.run(['notify-send', message])
 
 if __name__ == "__main__":
