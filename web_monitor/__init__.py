@@ -3,18 +3,26 @@ import sys
 import re
 from os.path import expanduser, isfile
 from collections import namedtuple
+from typing import ChainMap
 import requests
 from bs4 import BeautifulSoup
 import logging
 import subprocess
 import argparse
+import configparser
+from decimal import Decimal as D
+import re
 
 logger = logging.getLogger("webmonitor")
-handler = logging.StreamHandler(sys.stderr) 
+handler = logging.StreamHandler(sys.stderr)
 logger.addHandler(handler)
 
 
-PageMonitorData = namedtuple("PageMonitorData", ["url", "selector", "max_price"])
+PageMonitorData = namedtuple(
+    "PageMonitorData", ["url", "selector", "max_price", "cookies", "currency"]
+)
+
+defaults = {"cookies": "", "currency": "PLN"}
 
 
 def main():
@@ -28,45 +36,43 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     logger.setLevel(level=args.log_level)
 
-    records = open(config_file()).readlines()
-    for record in records:
-        logger.debug(f"Processing {record}")
-        try:
-            record = record.strip()
-            data = parse_record(record)
-            query_page(data)
-        except Exception as e:
-            logger.error(e)
-            continue
+    config = configparser.ConfigParser()
+    config.read(get_config_file())
 
-def config_file() -> str:
+    for product in config:
+        if product != "DEFAULT":
+            logger.debug(f"Processing {product}")
+            section = config[product]
+            section = ChainMap(section, defaults)
+            #  gettowskie parsowanie
+            cookies = [kv.split("=") for kv in section["cookies"].split()]
+            print(cookies)
+            cookies = {kv[0]: kv[1] for kv in cookies}
+            data = PageMonitorData(
+                section["url"],
+                section["selector"],
+                D(section["max_price"]),
+                cookies,
+                section["currency"],
+            )
+            query_page(data)
+
+
+def get_config_file() -> str:
     """
     Find the config file carrying web monitor records. The first existing file is
     returned
     """
-    config_options = [
-        "~/.webmonitorrc",
-        "~/webmonitorrc"
-    ]
+    config_options = ["~/.webmonitorrc", "~/webmonitorrc"]
     for file in config_options:
         if isfile(expanduser(file)):
             return expanduser(file)
     raise FileNotFoundError("No config file found")
 
-def parse_record(record) -> PageMonitorData:
-    """extract tuple (url,selector,max-price)"""
-    fields = re.split(r"\s+", record)
-    assert len(fields) == 3, f"Improper record: {record}"
-    url = fields[0]
-    #  TODO 06/12/20 psacawa: validate URL
-    selector = fields[1]
-    max_price = float(fields[2])
-    return PageMonitorData(url, selector, max_price)
-
 
 def query_page(data: PageMonitorData):
     """Query the page page described in the monitor data"""
-    response = requests.get(data.url)
+    response = requests.get(data.url, cookies=data.cookies)
     assert (
         response.status_code == 200
     ), f"http request to {data.url} failed with {response.status_code}"
@@ -74,17 +80,24 @@ def query_page(data: PageMonitorData):
     elements = soup.select(data.selector)
     assert len(elements) == 1, f"Selector '{data.selector}' returned too many elements"
     text: str = elements[0].text
-    price = float(text)
-    logger.debug(f"Found price on page {data.url} with selector {data.selector}: {price}")
+    text = text.replace(",", ".")  #  nie chcę mieszać się z lokalami
+    price = D(text)
+    logger.debug(
+        f"Found price on page {data.url} with selector {data.selector}: {price}"
+    )
     if price <= data.max_price:
         notify_success(data, price)
 
 
-def notify_success(data: PageMonitorData, price: float):
+def notify_success(data: PageMonitorData, price: D):
     """Notify that a deal has been found"""
-    message = f"Deal found at {data.url} for ${price:.2f} (threshold ${data.max_price:.2f})"
+    message = (
+        f"Sprzedaż u {data.url} za {price:.2f} {data.currency}"
+        f" (próg {data.max_price:.2f} {data.currency})"
+    )
     logger.info(message)
-    subprocess.run(['notify-send', message])
+    subprocess.run(["notify-send", message])
+
 
 if __name__ == "__main__":
     main()
