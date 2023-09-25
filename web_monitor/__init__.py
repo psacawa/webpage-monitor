@@ -46,7 +46,6 @@ def main():
             section = ChainMap(section, defaults)
             #  gettowskie parsowanie
             cookies = [kv.split("=") for kv in section["cookies"].split()]
-            print(cookies)
             cookies = {kv[0]: kv[1] for kv in cookies}
             data = PageMonitorData(
                 section["url"],
@@ -100,4 +99,7 @@ def notify_success(data: PageMonitorData, price: D):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt as e:
+        pass
